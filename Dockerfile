@@ -1,27 +1,21 @@
-FROM node:22-alpine AS base
+FROM node:20-alpine
 
-FROM base AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
 
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Install pnpm (cheki uses pnpm for dependency management)
+RUN npm install -g pnpm
+
+# Copy all project files into the container
 COPY . .
-RUN npm run build
 
-FROM base AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-USER nextjs
+# Install dependencies
+RUN pnpm install --frozen-lockfile || pnpm install
+
+# Build the Next.js application
+RUN pnpm build
+
+# Expose the port the app will run on
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-CMD ["node", "node_modules/next/dist/bin/next", "start"]
+
+# Start the application
+CMD ["pnpm", "start"]
